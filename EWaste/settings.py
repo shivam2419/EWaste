@@ -3,14 +3,13 @@ import os
 from decouple import config
 
 
-SECRET_KEY = config('SECRET_KEY')
-GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
-RAZORPAY_API_KEY = config('RAZORPAY_API_KEY')
-RAZORPAY_API_SECRET_KEY = config('RAZORPAY_API_SECRET_KEY')
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
-
+SECRET_KEY = "enter_your_key"
+GOOGLE_CLIENT_ID = "enter_your_key"
+GOOGLE_CLIENT_SECRET = "enter_your_key"
+RAZORPAY_API_KEY = "enter_your_key"
+RAZORPAY_API_SECRET_KEY = "enter_your_key"
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = "enter_your_key"
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = "enter_your_key"
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
