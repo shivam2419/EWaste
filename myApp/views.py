@@ -144,10 +144,10 @@ def register_user(request):
         return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
     if User.objects.filter(username=username).exists():
-        return Response({"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Username already exists"}, status=status.HTTP_403_FORBIDDEN)
 
     if User.objects.filter(email=email).exists():
-        return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Email already exists"}, status=status.HTTP_403_FORBIDDEN)
 
     if role not in ['user', 'recycler']:
         return Response({"error": "Invalid role specified"}, status=status.HTTP_400_BAD_REQUEST)
