@@ -475,11 +475,13 @@ def scrapOrders(request, user_id):
         completed_data = []
         for payment in completed_orders:
             owner_id = payment.owner.organisation_id if payment.owner else None
+            owner_name = payment.owner.user.username if payment.owner else None
             completed_data.append({
                 "transaction_id": payment.transaction_id,
                 "amount": float(payment.amount),
                 "created": payment.created.isoformat() if payment.created else None,
-                "owner_id": owner_id,
+                "organisation_name": owner_id,
+                "organisation_name": owner_name,
             })
 
         return JsonResponse({
