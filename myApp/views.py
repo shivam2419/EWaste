@@ -15,6 +15,7 @@ from social_django.utils import psa
 import razorpay
 from EWaste.settings import RAZORPAY_API_KEY, RAZORPAY_API_SECRET_KEY
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+from django.core.exceptions import ObjectDoesNotExist
 import requests
 BREVO_API_KEY = config('BREVO_API_KEY')
 @api_view(['POST'])
@@ -68,7 +69,6 @@ def sendMail(request):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return Response({"message": "Mail sent successfully!"}, status=status.HTTP_200_OK)
-
 
 @api_view(['GET'])
 @permission_classes([])
@@ -327,6 +327,8 @@ def update_user(request, user_id):
             owner.city = request.data.get("city", owner.city)
             owner.state = request.data.get("state", owner.state)
             owner.zipcode = request.data.get("zipcode", owner.zipcode)
+            owner.latitude = request.data.get("latitude", owner.latitude)
+            owner.longitude = request.data.get("longitude", owner.longitude)
             owner.save()
 
         # Update email in User model
@@ -441,6 +443,60 @@ def showNotifications(request):
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def scrapOrders(request, user_id):
+    try:
+        enduser_obj = endUser.objects.get(user_id=user_id)
+        ongoing_orders = RecycleForm.objects.filter(user=enduser_obj)
+        completed_orders = Payments.objects.filter(user=enduser_obj)
+
+        ongoing_data = []
+        for order in ongoing_orders:
+            org_id = order.organisation.organisation_id if order.organisation else None
+            org_name = order.organisation.user.username
+            # safe image url check
+            image_url = None
+            if order.image and hasattr(order.image, 'url'):
+                image_url = order.image.url
+
+            ongoing_data.append({
+                "order_id": order.order_id,
+                "item_type": order.item_type,
+                "weight": order.weight,
+                "date": order.date.isoformat() if order.date else None,
+                "location": order.location,
+                "image": image_url,
+                "organisation_id": org_id,
+                "organisation_name": org_name,
+                "status": order.status,
+            })
+
+        completed_data = []
+        for payment in completed_orders:
+            owner_id = payment.owner.id if payment.owner else None
+            completed_data.append({
+                "transaction_id": payment.transaction_id,
+                "amount": float(payment.amount),
+                "created": payment.created.isoformat() if payment.created else None,
+                "owner_id": owner_id,
+            })
+
+        return JsonResponse({
+            "enduser_id": enduser_obj.enduser_id,
+            "ongoing_orders": ongoing_data,
+            "completed_orders": completed_data,
+        }, safe=False)
+
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User or endUser not found."}, status=404)
+
+    except Exception as e:
+        import traceback
+        print("Exception in scrapOrders view:", e)
+        traceback.print_exc()
+        return JsonResponse({"error": str(e)}, status=500)
+
 # All orders of specific recycler : Takes recycler id : return all the orders of that recycler
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -461,7 +517,6 @@ def getAllPendingOrders(request, user_id):
     try:
         user = User.objects.get(pk = user_id)
         owner = Owner.objects.get(user = user)
-        print(owner)
         data = RecycleForm.objects.filter(organisation = owner, status = True)
         serializer = RecycleFormSerializer(data, many=True)
         return Response({'data':serializer.data}, status=status.HTTP_200_OK)
@@ -521,11 +576,10 @@ def orderRejected(request, order_id):
             recycle_obj = RecycleForm.objects.get(order_id=order_id)
         except RecycleForm.DoesNotExist:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
-        print(order_id)
         reason = f"Your request has been rejected by {recycle_obj.organisation.user.username}. Scrap collector said '{request.data.get('reason')}'"
         print(reason)
         enduser = recycle_obj.user
-        obj = Notification.objects.create(status = status, user = enduser, message = reason)
+        obj = Notification.objects.create(status = False, user = enduser, message = reason)
         recycle_obj.delete()
 
         return Response({'message': 'Order rejected successfully.'}, status=status.HTTP_200_OK)
@@ -554,19 +608,135 @@ def makePayment(request):
 @permission_classes([IsAuthenticated])
 def addPaymentStatus(request, order_id, username, owner_id, amount, transaction_id):
     try:
-        enduser = User.objects.get(username = username).enduser
-        print(enduser)
-        owner = User.objects.get(pk = owner_id).owner
-        data = f"Payment of {amount} received by {owner.user.username}"
-        print("owner id", owner)
-        print("data", data)
-        Notification.objects.create(status = True, user = enduser, message = data)
-        Payments.objects.create(user = enduser, owner = owner, transaction_id = transaction_id, amount = amount)
-        recycle_obj = RecycleForm.objects.get(order_id = order_id)
+        enduser = User.objects.get(username=username).enduser
+        owner = User.objects.get(pk=owner_id).owner
+        recycle_obj = RecycleForm.objects.get(order_id=order_id)
+
+        # Create notification and payment record
+        data_msg = f"Payment of {amount} received by {owner.user.username}, Transaction Id : {transaction_id}, Amount : {amount}"
+        Notification.objects.create(status=True, user=enduser, message=data_msg)
+        Payments.objects.create(user=enduser, owner=owner, transaction_id=transaction_id, amount=amount)
+
+        # Common email sending details
+        url = "https://api.brevo.com/v3/smtp/email"
+        api_key = BREVO_API_KEY
+        headers = {
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json"
+        }
+        sender = {"name": "Scrapbridge", "email": "csdslt2309@glbitm.ac.in"}
+        subject = "💸 Payment Instantiated 💸"
+        text_content = "Scrapbridge - Connecting you to World 🌍 !!"
+
+        # Email to user
+        html_content_user = f'''<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+  <table width="100%" style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 20px; border-radius: 8px;">
+    <tr><td style="text-align: center;"><h2 style="color: #28a745;">✅ Payment Successful</h2></td></tr>
+    <tr><td>
+      <p>Dear <strong>{enduser.user.username.upper()}</strong>,</p>
+      <p>We are pleased to inform you that your payment has been successfully processed for the scrap collection order.</p>
+      <h3 style="color: #333;">🧾 Payment Details</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Transaction ID:</strong> {transaction_id}</li>
+        <li><strong>Amount Paid:</strong> ₹{amount}</li>
+        <li><strong>Order ID:</strong> {order_id}</li>
+      </ul>
+      <h3 style="color: #333;">🗑 Scrap Request Details</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Item Type:</strong> {recycle_obj.item_type}</li>
+        <li><strong>Weight:</strong> {recycle_obj.weight/1000} kg</li>
+        <li><strong>Requested On:</strong> {recycle_obj.date.strftime('%Y-%m-%d')}</li>
+      </ul>
+      <h3 style="color: #333;">🙋‍♂️ Scrap Collector Info</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Name:</strong> {owner.user.username.upper()}</li>
+        <li><strong>Email:</strong> {owner.user.email}</li>
+        <li><strong>Phone:</strong> {owner.phone}</li>
+      </ul>
+      <p>Thank you for contributing to a cleaner environment! 🌍</p>
+      <p style="margin-top: 30px;">Warm regards,<br><strong>ScrapBridge Team</strong></p>
+    </td></tr>
+  </table>
+</body>'''
+
+        data_user = {
+            "sender": sender,
+            "to": [{"email": enduser.user.email, "name": enduser.user.username}],
+            "subject": subject,
+            "htmlContent": html_content_user,
+            "textContent": text_content
+        }
+        
+        response = requests.post(url, json=data_user, headers=headers)
+        if not response.ok:
+            try:
+                error_detail = response.json()  # parse JSON error details from API response
+            except Exception:
+                error_detail = response.text  # fallback to raw text if JSON parsing fails
+
+            return Response({
+                "Error": "Payment notification email to User failed",
+                "Details": error_detail
+            }, status=status.HTTP_400_BAD_REQUEST)
+        # Email to scrap collector
+        html_content_owner = f'''<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 10px;">
+  <table width="100%" style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 20px; border-radius: 8px;">
+    <tr><td style="text-align: center;"><h2 style="color: #28a745;">✅ Payment Successful</h2></td></tr>
+    <tr><td>
+      <p>Dear <strong>{owner.user.username.upper()}</strong>,</p>
+      <p>We are pleased to inform you that your payment has been successfully processed for the scrap collection order.</p>
+      <h3 style="color: #333;">🧾 Payment Details</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Transaction ID:</strong> {transaction_id}</li>
+        <li><strong>Amount Paid:</strong> ₹{amount}</li>
+        <li><strong>Order ID:</strong> {order_id}</li>
+      </ul>
+      <h3 style="color: #333;">🗑 Scrap Request Details</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Item Type:</strong> {recycle_obj.item_type}</li>
+        <li><strong>Weight:</strong> {recycle_obj.weight/1000} kg</li>
+        <li><strong>Requested On:</strong> {recycle_obj.date.strftime('%Y-%m-%d')}</li>
+      </ul>
+      <h3 style="color: #333;">🙋‍♂️ Receiver Info</h3>
+      <ul style="list-style-type: none; padding-left: 0;">
+        <li><strong>Name:</strong> {enduser.user.username.upper()}</li>
+        <li><strong>Email:</strong> {enduser.user.email}</li>
+        <li><strong>Phone:</strong> {enduser.phone}</li>
+      </ul>
+      <p>Thank you for contributing to a cleaner environment! 🌍</p>
+      <p style="margin-top: 30px;">Warm regards,<br><strong>ScrapBridge Team</strong></p>
+    </td></tr>
+  </table>
+</body>'''
+
+        data_owner = {
+            "sender": sender,
+            "to": [{"email": owner.user.email, "name": owner.user.username}],
+            "subject": subject,
+            "htmlContent": html_content_owner,
+            "textContent": text_content
+        }
+        
+        response = requests.post(url, json=data_owner, headers=headers)
+        if not response.ok:
+            try:
+                error_detail = response.json()  # parse JSON error details from API response
+            except Exception:
+                error_detail = response.text  # fallback to raw text if JSON parsing fails
+
+            return Response({
+                "Error": "Payment notification email to User failed",
+                "Details": error_detail
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         recycle_obj.delete()
-        return Response({"Success" : "Payment done"}, status=status.HTTP_200_OK)
+
+        return Response({"Success": "Payment done successfully"}, status=status.HTTP_200_OK)
+
     except Exception as e:
-        return Response({"Error" : str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 # Successful payments : Takes user id and return all the payments done by a specific scrap collector
 @api_view(['GET'])

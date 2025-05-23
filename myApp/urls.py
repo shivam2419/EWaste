@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/update-user/<int:user_id>/',views.update_user, name='update-user'), #✅
     path('api/users/', views.getUserDetails, name='get-all-users'), #✅
     path('api/scrap-request/', views.submit_scrap_request, name='scrap-request'), #✅
+    path('api/scrap-orders/<int:user_id>/', views.scrapOrders, name='scrap-orders'),
     path('api/contact-us/', views.submit_contact_details, name='contact-submit'), #✅
     path('api/notifications/', views.showNotifications, name='notifications'), #✅
 
