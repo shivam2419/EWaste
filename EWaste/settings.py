@@ -108,6 +108,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://scrapbridge-api.onrender.com",
     "https://scrapbridge.vercel.app",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "https://scrapbridge.vercel.app",
+    "https://scrapbridge-api.onrender.com"
+]
+
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
