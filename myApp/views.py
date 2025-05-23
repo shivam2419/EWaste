@@ -474,7 +474,7 @@ def scrapOrders(request, user_id):
 
         completed_data = []
         for payment in completed_orders:
-            owner_id = payment.owner.id if payment.owner else None
+            owner_id = payment.owner.owner_id if payment.owner else None
             completed_data.append({
                 "transaction_id": payment.transaction_id,
                 "amount": float(payment.amount),
