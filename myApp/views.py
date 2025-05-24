@@ -102,7 +102,11 @@ def list_tokens(request):
 def checkAuthentication(request):
     user = request.user
     IsAuthenticated = True if user.is_authenticated else False
-    return Response({'isAuthenticated': IsAuthenticated}, status=status.HTTP_200_OK)
+    if(IsAuthenticated):
+        role = 'user' if hasattr(user, 'enduser') else 'recycler'
+    else:
+        role = ''
+    return Response({'isAuthenticated': IsAuthenticated, 'role': role}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -156,7 +160,7 @@ def register_user(request):
     user = User.objects.create_user(username=username, email=email, password=password)
 
     if role == 'user':
-        enduser = endUser.objects.create(user=user, phone="123456")
+        enduser = endUser.objects.create(user=user)
     elif role == 'recycler':
         owner = Owner.objects.create(user=user, organisation_name=username)
 
@@ -313,13 +317,18 @@ def getEndUserDetails(request, user_id):
 def update_user(request, user_id):
     try:
         user = User.objects.get(pk=user_id)
-        print(user)
         enduser = None
         owner = None
 
         # Update related profile models
         if hasattr(user, 'enduser'):
             enduser = endUser.objects.get(user=user)
+            enduser.phone = request.data.get("phone", enduser.phone)
+            enduser.street = request.data.get("street", enduser.street)
+            enduser.city = request.data.get("city", enduser.city)
+            enduser.state = request.data.get("state", enduser.state)
+            enduser.zipcode = request.data.get("zipcode", enduser.zipcode)
+            enduser.save()
         elif hasattr(user, 'owner'):
             owner = Owner.objects.get(user=user)
             owner.phone = request.data.get("phone", owner.phone)
@@ -344,7 +353,7 @@ def update_user(request, user_id):
             serializer = OwnerSerializer(owner, data=request.data, partial=True)
         else:
             return Response({"error": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
-
+        
         if serializer.is_valid():
             serializer.save()
             return Response({
@@ -427,16 +436,21 @@ def submit_contact_details(request):
     
     return Response({'Error' : 'Contact details not submitted'}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])  # Also fix POST casing
+@api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def showNotifications(request):
     try:
         pk = request.data.get("user_id")
-        user = User.objects.get(pk = pk)
-        enduser = endUser.objects.get(user=user)
-        data = Notification.objects.filter(user=enduser)
+        mark_seen = request.data.get("mark_seen", False)  # Default: don't mark
 
-        # Yeh tha error: data= wrong tha yahan
+        user = User.objects.get(pk=pk)
+        enduser = endUser.objects.get(user=user)
+
+        # Mark as seen only if flag is passed
+        if mark_seen:
+            Notification.objects.filter(user=enduser, seen=False).update(seen=True)
+
+        data = Notification.objects.filter(user=enduser)
         serializer = NotificationSerializer(instance=data, many=True)
 
         return Response({"success": True, "data": serializer.data}, status=status.HTTP_200_OK)
@@ -534,12 +548,18 @@ def getOrderDetail(request, order_id):
 
         # Fetch the user using the user_id from the recycle_data
         user = User.objects.get(enduser=recycle_data.user)  # Assuming user_id is a field in RecycleForm
+        enduser = endUser.objects.get(user = user)
         owner = recycle_data.organisation
         # Add the username to the serializer data
         recycle_data_serialized = RecycleFormSerializer(recycle_data)
         response_data = recycle_data_serialized.data
         response_data['user'] = user.username  # Add the username to the response
         response_data['email'] = user.email  # Add the username to the response
+        response_data['street'] = enduser.street
+        response_data['city'] = enduser.city
+        response_data['state'] = enduser.state
+        response_data['zipcode'] = enduser.zipcode
+        response_data['phone'] = enduser.phone
         response_data['organisation_phone_number'] = owner.phone  # Add the username to the response
         
         return Response({'data': response_data}, status=status.HTTP_200_OK)

@@ -1,13 +1,17 @@
-from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.models import User
+from cloudinary.models import CloudinaryField
 
 # End User Model
 class endUser(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     enduser_id = models.AutoField(primary_key=True)
-    image = models.ImageField(upload_to='images/', null=True, blank=True, default=None)
+    image = CloudinaryField('image', folder='images', null=True, blank=True)
     phone = models.CharField(max_length=16, null=True, blank=True)
+    street = models.CharField(max_length=400, null=True, blank=True, default="")
+    city = models.CharField(max_length=400, null=True, blank=True, default="")
+    state = models.CharField(max_length=400, null=True, blank=True, default="")
+    zipcode = models.CharField(max_length=20, null=True, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
 # QNA Model
@@ -24,7 +28,7 @@ class Owner(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     organisation_id = models.AutoField(primary_key=True)
     organisation_name = models.CharField(max_length=200)
-    image = models.ImageField(upload_to='images/', null=True, blank=True)
+    image = CloudinaryField('image', folder='images', null=True, blank=True)
     phone = models.CharField(max_length=16, null=True, blank=True)  # Change to CharField
     # Address section
     city = models.CharField(max_length=400, null=True, blank=True, default="")
@@ -50,7 +54,7 @@ class RecycleForm(models.Model):
     item_type = models.CharField(max_length=100, null=True, blank=True)
     date = models.DateTimeField(null=True, blank=True)  # Change to DateTimeField
     phone = models.CharField(max_length=16, null=True, blank=True)  # Change to CharField
-    image = models.ImageField(upload_to='recycle_images/', null=True, blank=True)
+    image = CloudinaryField('image', folder='recycle_images', null=True, blank=True)
     weight = models.IntegerField(null=True, default=0)
     location = models.CharField(max_length=200, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -65,7 +69,7 @@ class Notification(models.Model):
     status = models.CharField(max_length=100, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     message = models.TextField()
-
+    seen = models.BooleanField(default=False)
     class Meta:
         ordering = ['-created']
 
