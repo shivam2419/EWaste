@@ -118,10 +118,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",       # React dev server
     "https://scrapbridge-api.onrender.com",
     "https://scrapbridge.vercel.app",
+    "https://scrapbridge-api-978o.onrender.com"
 ]
 CSRF_TRUSTED_ORIGINS = [
     "https://scrapbridge.vercel.app",
-    "https://scrapbridge-api.onrender.com"
+    "https://scrapbridge-api.onrender.com",
+    "https://scrapbridge-api-978o.onrender.com"
 ]
 
 # Database
