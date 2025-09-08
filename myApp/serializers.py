@@ -48,7 +48,7 @@ class ContactFormSerializer(serializers.ModelSerializer):
 class RecycleFormSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecycleForm
-        fields = ['item_type', 'date', 'phone', 'weight', 'image', 'user', 'organisation', 'order_id', 'location']
+        fields = ['item_type', 'date', 'phone', 'weight', 'image', 'user', 'organisation', 'order_id', 'location', 'status']
 
 # Notification Serializer
 class NotificationSerializer(serializers.ModelSerializer):

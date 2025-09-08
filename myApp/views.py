@@ -516,11 +516,24 @@ def scrapOrders(request, user_id):
 # All orders of specific recycler : Takes recycler id : return all the orders of that recycler
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def getAllOrders(request, user_id):
+def getAllAcceptedOrders(request, user_id):
     try:
         user = User.objects.get(pk = user_id)
         owner = Owner.objects.get(user = user)
         data = RecycleForm.objects.filter(organisation = owner, status = False)
+        serializer = RecycleFormSerializer(data, many=True)
+        return Response({'data':serializer.data}, status=status.HTTP_200_OK)
+    except Exception as e:  # Catch all errors instead
+        return Response({'Error': f'Some error occurred: {str(e)}'}, status=status.HTTP_404_NOT_FOUND)
+    
+# All active orders of specific recycler : Takes recycler id : return all the orders of that recycler
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def getAllOrders(request, user_id):
+    try:
+        user = User.objects.get(pk = user_id)
+        owner = Owner.objects.get(user = user)
+        data = RecycleForm.objects.filter(organisation = owner)
         serializer = RecycleFormSerializer(data, many=True)
         return Response({'data':serializer.data}, status=status.HTTP_200_OK)
     except Exception as e:  # Catch all errors instead
@@ -553,6 +566,7 @@ def getOrderDetail(request, order_id):
         # Add the username to the serializer data
         recycle_data_serialized = RecycleFormSerializer(recycle_data)
         response_data = recycle_data_serialized.data
+        response_data['status'] = recycle_data.status 
         response_data['user'] = user.username  # Add the username to the response
         response_data['email'] = user.email  # Add the username to the response
         response_data['street'] = enduser.street

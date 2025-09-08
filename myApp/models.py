@@ -38,7 +38,7 @@ class Owner(models.Model):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    
 # Contact Form Model
 class ContactForm(models.Model):
     name = models.CharField(max_length=100)
